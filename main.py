@@ -63,10 +63,16 @@ async def send_about(message: types.Message):
 
 @dp_main.message_handler(state=state_task.futures)
 async def get_futures(message: types.Message, state: FSMContext):
-    async with state.proxy() as data:
-        data['futures'] = message.text
-    await bot_main.send_message(message.from_user.id, 'Write price')
-    await state_task.price.set()
+    path = f'/api/v3/exchangeInfo?symbol={message.text.upper()}'
+    response = requests.get(base+path)
+    if 'code' in json.loads(response.text):
+        await bot_main.send_message(message.from_user.id, 'Bad futures')
+        await state.finish()
+    else:
+        async with state.proxy() as data:
+            data['futures'] = message.text
+        await bot_main.send_message(message.from_user.id, 'Write price')
+        await state_task.price.set()
 
 
 @dp_main.message_handler(state=state_task.price)
@@ -74,8 +80,8 @@ async def get_futures(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
         data['price'] = float(message.text)
         new_task = Task(user_id=message.from_user.id, futures=data['futures'].lower(), price=data['price'])
-        pairs = session.query(PairToWatch).filter(PairToWatch.pair == data['futures']).all()
-        if not pairs:
+        pairs = session.query(PairToWatch).all()
+        if data['futures'] not in pairs and data['futures'].lower() == 'btc':
             new_pair = PairToWatch(pair=data['futures'].lower()+'@aggTrade')
             session.add(new_pair)
         session.add(new_task)

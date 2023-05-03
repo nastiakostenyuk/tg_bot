@@ -22,5 +22,5 @@ class PairToWatch(base):
     pair = Column(String)
 
     def __repr__(self):
-        return f'{self.pair}'
+        return f'{self.pair.split("@")[0]}'
 
