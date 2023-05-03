@@ -9,7 +9,7 @@ from aiogram.contrib.middlewares.logging import LoggingMiddleware
 
 from config import TOKEN_BOT
 from db_utils.database import session, create_db
-from db_utils.models import Task
+from db_utils.models import Task, PairToWatch
 
 
 bot = Bot(token=TOKEN_BOT)
@@ -19,57 +19,48 @@ dp.middleware.setup(LoggingMiddleware())
 logging.basicConfig(level=logging.INFO)
 
 
-async def get_futures_price(current_task):
-    url = f'wss://stream.binance.com:9443/stream?streams={current_task.futures}@aggTrade'
-    async with websockets.connect(url) as client:
+# async def update_watchlist(id_last_pair):
+#
+#     new_pairs = []
+
+
+async def get_futures_price():
+    url = 'wss://stream.binance.com:9443/stream?streams='
+    first_pair = 'btcusdt@aggTrade'
+    watch_pairs = []
+    param = session.query(PairToWatch).all()
+    for elem in param:
+        watch_pairs.append(elem.pair)
+    async with websockets.connect(url+first_pair) as client:
+        sub = {"method": "SUBSCRIBE", "params": watch_pairs, "id": 1}
+        sub = json.dumps(sub)
+        await client.send(str(sub))
         while True:
-            data = json.loads(await client.recv())['data']
-            if data['p'] == current_task.price:
-                session.query(Task).filter(Task.task_id == current_task.task_id).\
-                    update(Task.done == True)
+            print('ok')
+            lst_pairs = session.query(PairToWatch).all()
+            if len(watch_pairs) != len(lst_pairs):
+                unsub = {"method": "UNSUBSCRIBE", "params": watch_pairs, "id": 2}
+                unsub = json.dumps(unsub)
+                await client.send(str(unsub))
+                watch_pairs = []
+                for pair in lst_pairs:
+                    watch_pairs.append(pair.pair)
+                sub = {"method": "SUBSCRIBE", "params": watch_pairs, "id": 1}
+                sub = json.dumps(sub)
+                await client.send(str(sub))
+            try:
+                data = json.loads(await client.recv())['data']
+                para_futures = session.query(Task).filter(Task.futures == data['s'].lower(), Task.done == False).all()
+                for elem in para_futures:
+                     if float(elem.price) == float(data['p']):
+                         elem.done = True
                 session.commit()
-                break
-            print(f"{current_task.task_id}-{data['p']}")
-        return data['p']
+            except Exception:
+                pass
 
 
-async def get_pending_tasks(last_task):
-    tasks = session.query(Task).filter(Task.task_id > last_task).all()
-    for task in tasks:
-        if not task.done:
-            tasks.append(task)
-
-    return tasks, tasks[-1].task_id
-
-
-async def process_tasks():
-    last_task = 0
-    while True:
-        # Get the tasks that need to be processed
-        tasks, last_task = await get_pending_tasks(last_task)
-
-        # Process each task
-        for task in tasks:
-            await get_futures_price(task)
-
-        # Wait for some time before checking for new tasks
-        await asyncio.sleep(10)
-
-
-
-
-# async def main():
-#     last_task_id = 0
-#     while True:
-#         tasks = session.query(Task).filter(Task.task_id > last_task_id).all()
-#         for task in tasks:
-#             t1 = asyncio.create_task(get_futures_price(task.task_id, 'btcusdt'))
-#             await t1
-#             last_task_id = task.id
-#         time.sleep(1)
 
 
 if __name__ == '__main__':
-    asyncio.run(process_tasks())
-    # asyncio.run(main())
+    asyncio.get_event_loop().run_until_complete(get_futures_price())
 

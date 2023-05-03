@@ -13,3 +13,14 @@ class Task(base):
 
     def __repr__(self):
         return f'{self.user_id} - {self.futures} - {self.price}'
+
+
+class PairToWatch(base):
+    __tablename__ = 'pairs_to_watch'
+
+    pair_id = Column(Integer, primary_key=True)
+    pair = Column(String)
+
+    def __repr__(self):
+        return f'{self.pair}'
+
