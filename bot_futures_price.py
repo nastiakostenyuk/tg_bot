@@ -36,7 +36,6 @@ async def get_futures_price():
         sub = json.dumps(sub)
         await client.send(str(sub))
         while True:
-            print('ok')
             lst_pairs = session.query(PairToWatch).all()
             if len(watch_pairs) != len(lst_pairs):
                 unsub = {"method": "UNSUBSCRIBE", "params": watch_pairs, "id": 2}

@@ -25,7 +25,6 @@ base = 'https://data.binance.com'
 
 
 async def get_done_task():
-    print('ooo')
     para_futures = session.query(Task).filter(Task.done == True).all()
     if para_futures:
         for elem in para_futures:
@@ -94,6 +93,15 @@ async def schedule():
         await asyncio.sleep(3)
 
 
+async def main():
+
+    task1 = asyncio.create_task(get_futures_price())
+    task2 = asyncio.create_task(schedule())
+    await asyncio.gather(task1, task2)
+
 if __name__ == '__main__':
-    executor.start_polling(dp_main, skip_updates=True)
+    loop = asyncio.get_event_loop()
+    loop.create_task(main())
+    loop.create_task(executor.start_polling(dp_main, skip_updates=True))
+    loop.run_forever()
 
