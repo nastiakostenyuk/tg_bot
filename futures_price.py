@@ -1,22 +1,10 @@
-import logging
 import json
 import websockets
 import asyncio
 
-from aiogram import Bot, Dispatcher, executor, types
-from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.contrib.middlewares.logging import LoggingMiddleware
-
-from settings import TOKEN_BOT
 from db_utils.database import session, create_db
 from db_utils.models import Task, PairToWatch
 
-
-bot = Bot(token=TOKEN_BOT)
-dp = Dispatcher(bot, storage=MemoryStorage())
-
-dp.middleware.setup(LoggingMiddleware())
-logging.basicConfig(level=logging.INFO)
 
 
 async def get_futures_price():

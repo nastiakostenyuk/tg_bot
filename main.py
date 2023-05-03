@@ -13,7 +13,7 @@ from state import Cryptocurrency
 from state import Task as state_task
 from db_utils.database import session, create_db, delete_tables
 from db_utils.models import Task, PairToWatch
-from bot_futures_price import get_futures_price
+from futures_price import get_futures_price
 
 bot_main = Bot(token=TOKEN_MAIN_BOT)
 dp_main = Dispatcher(bot_main, storage=MemoryStorage())
