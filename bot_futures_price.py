@@ -19,11 +19,6 @@ dp.middleware.setup(LoggingMiddleware())
 logging.basicConfig(level=logging.INFO)
 
 
-# async def update_watchlist(id_last_pair):
-#
-#     new_pairs = []
-
-
 async def get_futures_price():
     url = 'wss://stream.binance.com:9443/stream?streams='
     first_pair = 'btcusdt@aggTrade'

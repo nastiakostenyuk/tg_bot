@@ -42,8 +42,10 @@ async def send_about(message: types.Message):
 async def get_price(message: types.Message, state: FSMContext):
     path = '/api/v3/ticker/price'
     url = base + path
-    parameters = {'symbol': message.text}
+    symbol = message.text.upper()
+    parameters = {'symbol': symbol}
     response = requests.get(url, params=parameters)
+
     if response.status_code == 200:
         js_response = json.loads(response.text)
         await message.reply(f"Current price: {js_response['price']}")
