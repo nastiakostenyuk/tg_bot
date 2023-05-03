@@ -2,7 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
 
-from config import DATABASE
+from settings import DATABASE
 
 db_string = DATABASE
 
@@ -21,4 +21,3 @@ def create_db():
 
 def delete_tables():
     base.metadata.drop_all(db)
-

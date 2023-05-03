@@ -8,7 +8,7 @@ from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.contrib.middlewares.logging import LoggingMiddleware
 from aiogram.dispatcher import FSMContext
 
-from config import TOKEN_MAIN_BOT
+from settings import TOKEN_MAIN_BOT
 from state import Cryptocurrency
 from state import Task as state_task
 from db_utils.database import session, create_db, delete_tables
@@ -21,29 +21,32 @@ dp_main = Dispatcher(bot_main, storage=MemoryStorage())
 dp_main.middleware.setup(LoggingMiddleware())
 logging.basicConfig(level=logging.INFO)
 
-base = 'https://data.binance.com'
+base = "https://data.binance.com"
 
 
 async def get_done_task():
     para_futures = session.query(Task).filter(Task.done == True).all()
     if para_futures:
         for elem in para_futures:
-            await bot_main.send_message(elem.user_id, f'Current price {elem.futures} - {elem.price}')
+            await bot_main.send_message(
+                elem.user_id, f"Current price {elem.futures} - {elem.price}"
+            )
             session.delete(elem)
     session.commit()
 
-@dp_main.message_handler(commands=['get_current_price'])
+
+@dp_main.message_handler(commands=["get_current_price"])
 async def send_about(message: types.Message):
-    await bot_main.send_message(message.from_user.id, 'Write cryptocurrency')
+    await bot_main.send_message(message.from_user.id, "Write cryptocurrency")
     await Cryptocurrency.cryptocurrency.set()
 
 
 @dp_main.message_handler(state=Cryptocurrency.cryptocurrency)
 async def get_price(message: types.Message, state: FSMContext):
-    path = '/api/v3/ticker/price'
+    path = "/api/v3/ticker/price"
     url = base + path
     symbol = message.text.upper()
-    parameters = {'symbol': symbol}
+    parameters = {"symbol": symbol}
     response = requests.get(url, params=parameters)
 
     if response.status_code == 200:
@@ -55,44 +58,51 @@ async def get_price(message: types.Message, state: FSMContext):
     await state.finish()
 
 
-@dp_main.message_handler(commands=['create_task'])
+@dp_main.message_handler(commands=["create_task"])
 async def send_about(message: types.Message):
-    await bot_main.send_message(message.from_user.id, 'Write futures')
+    await bot_main.send_message(message.from_user.id, "Write futures")
     await state_task.futures.set()
 
 
 @dp_main.message_handler(state=state_task.futures)
 async def get_futures(message: types.Message, state: FSMContext):
-    path = f'/api/v3/exchangeInfo?symbol={message.text.upper()}'
-    response = requests.get(base+path)
-    if 'code' in json.loads(response.text):
-        await bot_main.send_message(message.from_user.id, 'Bad futures')
+    path = f"/api/v3/exchangeInfo?symbol={message.text.upper()}"
+    response = requests.get(base + path)
+    if "code" in json.loads(response.text):
+        await bot_main.send_message(message.from_user.id, "Bad futures")
         await state.finish()
     else:
         async with state.proxy() as data:
-            data['futures'] = message.text
-        await bot_main.send_message(message.from_user.id, 'Write price')
+            data["futures"] = message.text
+        await bot_main.send_message(message.from_user.id, "Write price")
         await state_task.price.set()
 
 
 @dp_main.message_handler(state=state_task.price)
 async def get_futures(message: types.Message, state: FSMContext):
     async with state.proxy() as data:
-        data['price'] = float(message.text)
-        new_task = Task(user_id=message.from_user.id, futures=data['futures'].lower(), price=data['price'])
-        pairs = session.query(PairToWatch).all()
-        if data['futures'] not in pairs and data['futures'].lower() == 'btc':
-            new_pair = PairToWatch(pair=data['futures'].lower()+'@aggTrade')
+        data["price"] = float(message.text)
+        new_task = Task(
+            user_id=message.from_user.id,
+            futures=data["futures"].lower(),
+            price=data["price"],
+        )
+        pairs = [elem.pair.split("@")[0] for elem in session.query(PairToWatch).all()]
+        if (
+            data["futures"].lower() not in pairs
+            and data["futures"].lower() != "btcusdt"
+        ):
+            new_pair = PairToWatch(pair=data["futures"].lower() + "@aggTrade")
             session.add(new_pair)
         session.add(new_task)
         session.commit()
-    await bot_main.send_message(message.from_user.id, 'ok')
+    await bot_main.send_message(message.from_user.id, "ok")
     await state.finish()
 
 
 @dp_main.message_handler()
 async def send_about(message: types.Message):
-    await message.reply('/get_current_price, /create_task')
+    await message.reply("/get_current_price, /create_task")
 
 
 async def schedule():
@@ -102,14 +112,13 @@ async def schedule():
 
 
 async def main():
-
     task1 = asyncio.create_task(get_futures_price())
     task2 = asyncio.create_task(schedule())
     await asyncio.gather(task1, task2)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     loop = asyncio.get_event_loop()
     loop.create_task(main())
     loop.create_task(executor.start_polling(dp_main, skip_updates=True))
     loop.run_forever()
-
