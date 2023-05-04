@@ -10,6 +10,8 @@ class Task(base):
     futures = Column(String)
     price = Column(Numeric)
     done = Column(Boolean, default=False)
+    last_price = Column(Numeric, default=None)
+    is_long = Column(Boolean)
 
     def __repr__(self):
         return f"{self.user_id} - {self.futures} - {self.price}"

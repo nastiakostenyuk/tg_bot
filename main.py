@@ -14,6 +14,8 @@ from state import Task as state_task
 from db_utils.database import session, create_db, delete_tables
 from db_utils.models import Task, PairToWatch
 from futures_price import get_futures_price
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
 
 bot_main = Bot(token=TOKEN_MAIN_BOT)
 dp_main = Dispatcher(bot_main, storage=MemoryStorage())
@@ -29,7 +31,7 @@ async def get_done_task():
     if para_futures:
         for elem in para_futures:
             await bot_main.send_message(
-                elem.user_id, f"Current price {elem.futures} - {elem.price}"
+                elem.user_id, f"Price reached {elem.futures} - {elem.price}"
             )
             session.delete(elem)
     session.commit()
@@ -80,12 +82,21 @@ async def get_futures(message: types.Message, state: FSMContext):
 
 @dp_main.message_handler(state=state_task.price)
 async def get_futures(message: types.Message, state: FSMContext):
+    path = "/api/v3/ticker/price"
+    url = base + path
     async with state.proxy() as data:
         data["price"] = float(message.text)
+        symbol = data['futures'].upper()
+        parameters = {"symbol": symbol}
+        response = requests.get(url, params=parameters)
+        js_response = json.loads(response.text)
+
         new_task = Task(
             user_id=message.from_user.id,
             futures=data["futures"].lower(),
             price=data["price"],
+            last_price=float(js_response["price"]),
+            is_long=float(js_response['price']) < data['price']
         )
         pairs = [elem.pair.split("@")[0] for elem in session.query(PairToWatch).all()]
         if (
@@ -96,9 +107,26 @@ async def get_futures(message: types.Message, state: FSMContext):
             session.add(new_pair)
         session.add(new_task)
         session.commit()
-    await bot_main.send_message(message.from_user.id, "ok")
+        # btn_up = InlineKeyboardButton('Up', callback_data=f'Up_{data["futures"]}_{data["price"]}')
+        # btn_down = InlineKeyboardButton('Down', callback_data='Down')
+    await bot_main.send_message(message.from_user.id, "Done")
     await state.finish()
 
+
+@dp_main.callback_query_handler(lambda c: 'Up' in c.data)
+async def price_up(callback_query: types.CallbackQuery):
+    await bot_main.answer_callback_query(callback_query.id)
+    edit_long = session.query(Task).filter(Task.futures == callback_query.data.split('_')[1],
+                                           Task.price == callback_query.data.split('_')[-1]).update(
+        {Task.is_long: True}
+    )
+    await bot_main.send_message(callback_query.from_user.id, 'Done')
+
+
+@dp_main.callback_query_handler(lambda c: c.data == 'Down')
+async def price_up(callback_query: types.CallbackQuery):
+    await bot_main.answer_callback_query(callback_query.id)
+    await bot_main.send_message(callback_query.from_user.id, 'Done')
 
 @dp_main.message_handler()
 async def send_about(message: types.Message):

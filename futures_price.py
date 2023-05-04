@@ -1,6 +1,7 @@
 import json
 import websockets
 import asyncio
+import logging
 
 from db_utils.database import session, create_db
 from db_utils.models import Task, PairToWatch
@@ -15,9 +16,10 @@ async def get_futures_price():
     for elem in param:
         watch_pairs.append(elem.pair)
     async with websockets.connect(url + first_pair) as client:
-        sub = {"method": "SUBSCRIBE", "params": watch_pairs, "id": 1}
-        sub = json.dumps(sub)
-        await client.send(str(sub))
+        if watch_pairs:
+            sub = {"method": "SUBSCRIBE", "params": watch_pairs, "id": 1}
+            sub = json.dumps(sub)
+            await client.send(str(sub))
         while True:
             lst_pairs = session.query(PairToWatch).all()
             if len(watch_pairs) != len(lst_pairs):
@@ -37,12 +39,17 @@ async def get_futures_price():
                     .filter(Task.futures == data["s"].lower(), Task.done == False)
                     .all()
                 )
+                last_price = float(data['p'])
+
                 for elem in para_futures:
-                    if float(elem.price) == float(data["p"]):
+                    check_up = bool(float(elem.price) >= last_price)
+                    check_down = bool(float(elem.price) <= last_price)
+                    check = check_down if elem.is_long else check_up
+                    if check:
                         elem.done = True
                 session.commit()
-            except Exception:
-                pass
+            except Exception as exp:
+                logging.error(exp)
 
 
 if __name__ == "__main__":
